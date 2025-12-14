@@ -5,7 +5,7 @@ using UnityEngine.UI; // UI resmini değiştirmek için gerekli
 public class MainMenuManager : MonoBehaviour
 {
     [Header("Sahne Ayarları")]
-    public string gameSceneName = "SampleScene";
+    public string gameSceneName = "Tutorial";
 
     [Header("Paneller")]
     public GameObject optionsPanel;
