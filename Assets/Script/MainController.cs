@@ -3,6 +3,7 @@ using UnityEngine.UI;
 using TMPro;          
 using System.Collections;
 using DG.Tweening; 
+using UnityEngine.SceneManagement; // SAHNE GEÇİŞİ İÇİN ŞART!
 
 public class MainController : MonoBehaviour
 {
@@ -16,6 +17,7 @@ public class MainController : MonoBehaviour
     [Header("--- ANA EKRAN UI ---")]
     [SerializeField] private TextMeshProUGUI mainFollowerText; 
     [SerializeField] private Button startStreamButton;         
+    [SerializeField] private Image corruptionOverlay; // Varsa eklediğin overlay
     
     [Header("--- YAYIN EKRANI UI ---")]
     [SerializeField] private TextMeshProUGUI liveViewerText; 
@@ -44,6 +46,10 @@ public class MainController : MonoBehaviour
     [SerializeField] private Button acceptGodModeButton;
     [SerializeField] private Button declineGodModeButton;
 
+    [Header("--- GAME OVER ---")]
+    [SerializeField] private GameObject gameOverPanel; // Panelini buraya sürükle
+    [SerializeField] private Button returnToMenuButton; // Paneldeki butonu buraya sürükle
+
     void Awake()
     {
         if (Instance == null) Instance = this;
@@ -56,7 +62,9 @@ public class MainController : MonoBehaviour
         if(resultPanel != null) resultPanel.SetActive(false);
         if(offerPanel != null) offerPanel.SetActive(false);
         if(godModePanel != null) godModePanel.SetActive(false);
+        if(gameOverPanel != null) gameOverPanel.SetActive(false); // Başlangıçta gizle
         
+        // Buton Bağlantıları
         if (startStreamButton != null)
         {
             startStreamButton.onClick.RemoveAllListeners();
@@ -91,6 +99,13 @@ public class MainController : MonoBehaviour
             declineGodModeButton.onClick.AddListener(() => OnGodModeChoice(false));
         }
 
+        // --- YENİ: GAME OVER BUTONU ---
+        if (returnToMenuButton != null)
+        {
+            returnToMenuButton.onClick.RemoveAllListeners();
+            returnToMenuButton.onClick.AddListener(ReturnToMainMenu);
+        }
+
         StartCoroutine(AutoSpeakAtStart());
     }
 
@@ -103,9 +118,46 @@ public class MainController : MonoBehaviour
 
             if (roomSanityText != null) 
                 roomSanityText.text = "%" + Mathf.RoundToInt(GameManager.Instance.morality).ToString(); 
+            
+            // Karanlık Çöküş Efekti (Eklediysen)
+            if (corruptionOverlay != null)
+            {
+                float ratio = 1.0f - (GameManager.Instance.morality / 100f);
+                corruptionOverlay.color = new Color(0, 0, 0, ratio * 0.6f);
+            }
         }
     }
 
+    // --- YENİ: GAME OVER TETİKLEYİCİ ---
+    public void TriggerGameOver()
+    {
+        // Diğer panelleri kapat
+        if (resultPanel != null) resultPanel.SetActive(false);
+        if (minigameObject != null) minigameObject.SetActive(false);
+        if (streamUIManager != null) streamUIManager.EndStream(); // Yayındaysa bitir
+
+        if (gameOverPanel != null)
+        {
+            gameOverPanel.SetActive(true);
+            gameOverPanel.transform.localScale = Vector3.zero;
+            gameOverPanel.transform.DOScale(Vector3.one, 0.5f).SetEase(Ease.OutBack);
+            
+            // Arka plandaki butonları kilitle
+            startStreamButton.interactable = false;
+        }
+    }
+
+    // --- YENİ: MENÜYE DÖNÜŞ ---
+    public void ReturnToMainMenu()
+    {
+        // 1. Önce verileri sıfırla
+        GameManager.Instance.ResetGameData();
+
+        // 2. Sahneye dön (Sahne adının "MainMenu" olduğundan emin ol!)
+        SceneManager.LoadScene("MainMenu");
+    }
+
+    // ... Diğer fonksiyonlar aynı kalıyor ...
     IEnumerator AutoSpeakAtStart()
     {
         yield return new WaitForSeconds(1.0f);
@@ -145,7 +197,12 @@ public class MainController : MonoBehaviour
     {
         if(minigameObject != null) minigameObject.SetActive(false);
         GameManager.Instance.ProcessMinigameEnd(score);
-        ShowResults(score); 
+        
+        // Eğer Game Over olmadıysa sonuçları göster
+        if (GameManager.Instance.morality > 0)
+        {
+            ShowResults(score); 
+        }
     }
 
     void ShowResults(int rawScore)
@@ -181,7 +238,9 @@ public class MainController : MonoBehaviour
     {
         yield return new WaitForSeconds(1.5f); 
 
-        // Sıradaki hedefi geçtik mi?
+        // Eğer oyun bittiyse teklif sunma
+        if (GameManager.Instance.morality <= 0) yield break;
+
         if (GameManager.Instance.followers >= GameManager.Instance.nextEventThreshold)
         {
             if (GameManager.Instance.isCorrupt && !GameManager.Instance.isGodMode)
@@ -224,12 +283,15 @@ public class MainController : MonoBehaviour
         }
         else
         {
-            // TRUE gönderiyoruz çünkü bu God Mode teklifi
             GameManager.Instance.PostponeOffer(true); 
         }
 
-        UpdateMainUI();
-        startStreamButton.interactable = true;
+        // Seçim sonrası ölmediyse UI güncelle
+        if (GameManager.Instance.morality > 0)
+        {
+            UpdateMainUI();
+            startStreamButton.interactable = true;
+        }
     }
 
     void OpenOfferPanel()
@@ -253,12 +315,14 @@ public class MainController : MonoBehaviour
         }
         else
         {
-            // FALSE gönderiyoruz çünkü bu normal teklif
             GameManager.Instance.PostponeOffer(false); 
         }
 
-        UpdateMainUI();
-        startStreamButton.interactable = true;
+        if (GameManager.Instance.morality > 0)
+        {
+            UpdateMainUI();
+            startStreamButton.interactable = true;
+        }
     }
 
     void ReturnToRoom()

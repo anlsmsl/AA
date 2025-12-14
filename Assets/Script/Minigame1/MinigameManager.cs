@@ -106,8 +106,15 @@ public class MinigameManager : MonoBehaviour
         }
     }
 
+    public void Start()
+    {
+        MusicManager.Instance.PlayMinigameMusic();
+        MusicManager.Instance.PlayMainTheme();
+    }
+
     void StartMinigameLogic()
     {
+        
         if (startGameButton) startGameButton.gameObject.SetActive(false);
         if (gameBackground) gameBackground.SetActive(true);
 

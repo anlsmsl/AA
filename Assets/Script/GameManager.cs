@@ -10,12 +10,11 @@ public class GameManager : MonoBehaviour
     public int streamCount = 0;     
 
     [Header("--- KILITLER VE FAZLAR ---")]
-    public bool isCorrupt = false;      // Faz 2 kabul edildi mi?
-    public bool isGodMode = false;      // Faz 3 kabul edildi mi?
+    public bool isCorrupt = false;      
+    public bool isGodMode = false;      
     
-    
-    public bool offerPresented = false;        // İlk teklif oyuncuya GÖSTERİLDİ mi?
-    public bool godModeOfferPresented = false; // God mode teklifi GÖSTERİLDİ mi?
+    public bool offerPresented = false;        
+    public bool godModeOfferPresented = false; 
 
     [Header("--- OTOMATİK TEKLİF SİSTEMİ ---")]
     public long nextEventThreshold = 5000; 
@@ -27,11 +26,31 @@ public class GameManager : MonoBehaviour
         else Destroy(gameObject);
     }
 
+    // --- YENİ: VERİLERİ SIFIRLAMA FONKSİYONU ---
+    public void ResetGameData()
+    {
+        followers = 100;
+        morality = 100f;
+        streamCount = 0;
+
+        isCorrupt = false;
+        isGodMode = false;
+        offerPresented = false;
+        godModeOfferPresented = false;
+
+        nextEventThreshold = 5000;
+        
+        Debug.Log("Oyun verileri sıfırlandı.");
+    }
+
     public void UpdateGeneralStats(int followerGain, float sanityChange)
     {
         followers += followerGain;
         morality += sanityChange;
         morality = Mathf.Clamp(morality, 0f, 100f);
+
+        // TrendHunt sırasında ölürse kontrolü
+        CheckGameOver();
     }
 
     public void ProcessMinigameEnd(int rawScore)
@@ -65,21 +84,33 @@ public class GameManager : MonoBehaviour
         streamCount++;
         
         Debug.Log($"Yayın Bitti. Takipçi: {followers} / Sıradaki Hedef: {nextEventThreshold}");
+
+        // --- YENİ: GAME OVER KONTROLÜ ---
+        // Eğer morality bittiyse MainController'ı tetikle ve çık
+        if (CheckGameOver()) return; 
     }
 
-    // --- TEKLİFİ REDDEDERSE ---
+    // Yardımcı Fonksiyon: Ölümü kontrol eder
+    private bool CheckGameOver()
+    {
+        if (morality <= 0)
+        {
+            Debug.Log("GAME OVER! Akıl sağlığı tükendi.");
+            if (MainController.Instance != null)
+                MainController.Instance.TriggerGameOver();
+            return true; // Oyun bitti
+        }
+        return false; // Devam
+    }
+
     public void PostponeOffer(bool isGodModeOffer)
     {
         nextEventThreshold += offerInterval;
-        
-        // Teklifi gördü ama reddetti olarak işaretle
         if (isGodModeOffer) godModeOfferPresented = true;
         else offerPresented = true;
-        
         Debug.Log($"Teklif reddedildi. Bir sonraki: {nextEventThreshold}");
     }
 
-    // --- TEKLİFİ KABUL EDERSE ---
     public void AcceptOffer(bool isGodModeDeal)
     {
         if (isGodModeDeal)
@@ -97,5 +128,8 @@ public class GameManager : MonoBehaviour
             nextEventThreshold += offerInterval;
         }
         morality = Mathf.Clamp(morality, 0f, 100f);
+        
+        // Kabul edince morality düşüyor, burada da ölebilir
+        CheckGameOver();
     }
 }
